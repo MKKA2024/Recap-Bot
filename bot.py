@@ -36,6 +36,7 @@ TTS_VOICE = "my-MM-NilarNeural"
 PROGRESS_UPDATE_THRESHOLD_PERCENT = 10
 PROGRESS_UPDATE_INTERVAL_SECONDS = 5
 TELEGRAM_MESSAGE_CHUNK_LIMIT = 4000
+INITIAL_PROGRESS_SENTINEL = -10
 STATUS_RECEIVED_TEXT = "⏳ Video လက်ခံရပါပြီ၊ Processing လုပ်နေပါတယ်..."
 STATUS_DOWNLOADING_TEXT = "⏬ Video ကို download လုပ်နေပါတယ်..."
 STATUS_EXTRACTING_TEXT = "🎵 Audio ထုတ်ယူနေပါတယ်..."
@@ -179,7 +180,7 @@ async def safe_edit(message: Message, text: str) -> None:
 
 def build_progress_callback(status_message: Message) -> Callable[[int, int], None]:
     loop = asyncio.get_running_loop()
-    progress_state = {"percent": -10, "updated_at": 0.0}
+    progress_state = {"percent": INITIAL_PROGRESS_SENTINEL, "updated_at": 0.0}
 
     def progress(current: int, total: int) -> None:
         if total <= 0:
@@ -271,10 +272,10 @@ async def handle_video(client: Client, message: Message) -> None:
                     await message.reply_text(STATUS_TTS_TEXT)
                     await create_voice_reply(transcript, str(voice_path))
                     await message.reply_voice(str(voice_path), caption="🔊 Myanmar voice reply")
-                except (OSError, RuntimeError, ValueError, RPCError) as error:
+                except (OSError, RuntimeError, ValueError, RPCError):
                     LOGGER.exception("TTS reply failed")
                     await message.reply_text(STATUS_TTS_FAILED_TEXT)
-    except (OSError, RuntimeError, ValueError, RPCError) as error:
+    except (OSError, RuntimeError, ValueError, RPCError):
         LOGGER.exception("Video processing failed")
         await safe_edit(status_message, STATUS_PROCESSING_FAILED_TEXT)
 
