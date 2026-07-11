@@ -43,7 +43,8 @@ STATUS_EXTRACTING_TEXT = "🎵 Audio ထုတ်ယူနေပါတယ်..."
 STATUS_TRANSCRIBING_TEXT = "🧠 Myanmar speech transcript လုပ်နေပါတယ်..."
 STATUS_TTS_TEXT = "🔊 Voice reply ပြင်ဆင်နေပါတယ်..."
 STATUS_UNSUPPORTED_DOCUMENT_TEXT = "❌ ဒီ document က video file မဟုတ်လို့ process မလုပ်နိုင်ပါ။"
-STATUS_TTS_FAILED_TEXT = "⚠️ Transcript ပို့ပြီးပါပြီ။ Voice reply မပို့နိုင်သေးပါ။"
+STATUS_TTS_GENERATION_FAILED_TEXT = "⚠️ Transcript ပို့ပြီးပါပြီ။ Voice reply audio မဖန်တီးနိုင်သေးပါ။"
+STATUS_VOICE_UPLOAD_FAILED_TEXT = "⚠️ Transcript ပို့ပြီးပါပြီ။ Voice message မပို့နိုင်သေးပါ။"
 STATUS_PROCESSING_FAILED_TEXT = "❌ Processing မအောင်မြင်ပါ။ Video file ကို ပြန်စမ်းပို့ပေးပါ။"
 _whisper_model_cache = None
 
@@ -274,13 +275,17 @@ async def handle_video(client: Client, message: Message) -> None:
 
             if TTS_ENABLED:
                 try:
-                    current_step = "tts reply"
+                    current_step = "TTS generation"
                     await message.reply_text(STATUS_TTS_TEXT)
                     await create_voice_reply(transcript, str(voice_path))
+                    current_step = "voice upload"
                     await message.reply_voice(str(voice_path), caption="🔊 Myanmar voice reply")
                 except (OSError, RuntimeError, ValueError, RPCError):
                     LOGGER.exception("TTS reply failed during %s", current_step)
-                    await message.reply_text(STATUS_TTS_FAILED_TEXT)
+                    if current_step == "voice upload":
+                        await message.reply_text(STATUS_VOICE_UPLOAD_FAILED_TEXT)
+                    else:
+                        await message.reply_text(STATUS_TTS_GENERATION_FAILED_TEXT)
     except (OSError, RuntimeError, ValueError, RPCError):
         LOGGER.exception("Video processing failed during %s", current_step)
         await safe_edit(status_message, STATUS_PROCESSING_FAILED_TEXT)
