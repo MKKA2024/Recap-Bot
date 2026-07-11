@@ -1,0 +1,7 @@
+pyrogram
+tgcrypto
+openai-whisper
+ffmpeg-python
+edge-tts
+torch
+python-dotenv
