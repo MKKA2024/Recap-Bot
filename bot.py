@@ -45,7 +45,7 @@ STATUS_TTS_TEXT = "🔊 Voice reply ပြင်ဆင်နေပါတယ်..
 STATUS_UNSUPPORTED_DOCUMENT_TEXT = "❌ ဒီ document က video file မဟုတ်လို့ process မလုပ်နိုင်ပါ။"
 STATUS_TTS_FAILED_TEXT = "⚠️ Transcript ပို့ပြီးပါပြီ။ Voice reply မပို့နိုင်သေးပါ။"
 STATUS_PROCESSING_FAILED_TEXT = "❌ Processing မအောင်မြင်ပါ။ Video file ကို ပြန်စမ်းပို့ပေးပါ။"
-_WHISPER_MODEL = None
+_whisper_model_cache = None
 
 
 def validate_config() -> int:
@@ -55,7 +55,9 @@ def validate_config() -> int:
         "API_HASH": API_HASH,
         "BOT_TOKEN": BOT_TOKEN,
     }.items():
-        if not value or value.startswith("YOUR_") or value.endswith("_here"):
+        value_text = str(value).strip()
+        lowered = value_text.lower()
+        if not value_text or lowered.startswith("your_") or lowered.endswith("_here"):
             missing.append(name)
 
     if missing:
@@ -72,11 +74,11 @@ def validate_config() -> int:
 
 
 def get_whisper_model():
-    global _WHISPER_MODEL
-    if _WHISPER_MODEL is None:
+    global _whisper_model_cache
+    if _whisper_model_cache is None:
         LOGGER.info("Loading Whisper model: %s", WHISPER_MODEL)
-        _WHISPER_MODEL = whisper.load_model(WHISPER_MODEL)
-    return _WHISPER_MODEL
+        _whisper_model_cache = whisper.load_model(WHISPER_MODEL)
+    return _whisper_model_cache
 
 
 def is_supported_document(message: Message) -> bool:
@@ -208,7 +210,7 @@ def build_progress_callback(status_message: Message) -> Callable[[int, int], Non
 async def send_transcript(message: Message, status_message: Message, transcript: str) -> None:
     chunks = split_transcript(transcript)
     if not chunks:
-        raise ValueError("Transcript result is empty.")
+        raise ValueError("Whisper transcription produced an empty result.")
 
     await status_message.edit_text(f"📝 Transcript:\n\n{chunks[0]}")
     for chunk in chunks[1:]:
@@ -246,6 +248,7 @@ async def handle_video(client: Client, message: Message) -> None:
         return
 
     status_message = await message.reply_text(STATUS_RECEIVED_TEXT)
+    current_step = "download"
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -259,9 +262,11 @@ async def handle_video(client: Client, message: Message) -> None:
                 file_name=str(video_path),
                 progress=build_progress_callback(status_message),
             )
+            current_step = "audio extraction"
             await safe_edit(status_message, STATUS_EXTRACTING_TEXT)
 
             await asyncio.to_thread(extract_audio, str(video_path), str(audio_path))
+            current_step = "transcription"
             await safe_edit(status_message, STATUS_TRANSCRIBING_TEXT)
 
             transcript = await asyncio.to_thread(transcribe_audio, str(audio_path))
@@ -269,14 +274,15 @@ async def handle_video(client: Client, message: Message) -> None:
 
             if TTS_ENABLED:
                 try:
+                    current_step = "tts reply"
                     await message.reply_text(STATUS_TTS_TEXT)
                     await create_voice_reply(transcript, str(voice_path))
                     await message.reply_voice(str(voice_path), caption="🔊 Myanmar voice reply")
                 except (OSError, RuntimeError, ValueError, RPCError):
-                    LOGGER.exception("TTS reply failed")
+                    LOGGER.exception("TTS reply failed during %s", current_step)
                     await message.reply_text(STATUS_TTS_FAILED_TEXT)
     except (OSError, RuntimeError, ValueError, RPCError):
-        LOGGER.exception("Video processing failed")
+        LOGGER.exception("Video processing failed during %s", current_step)
         await safe_edit(status_message, STATUS_PROCESSING_FAILED_TEXT)
 
 

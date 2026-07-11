@@ -110,6 +110,19 @@ bot = importlib.import_module("bot")
 
 
 class BotHelpersTest(unittest.TestCase):
+    def test_validate_config_rejects_example_placeholders(self):
+        with patch.object(bot, "API_ID", "your_api_id_here"), patch.object(bot, "API_HASH", "your_api_hash_here"), patch.object(
+            bot, "BOT_TOKEN", "your_bot_token_here"
+        ):
+            with self.assertRaises(RuntimeError):
+                bot.validate_config()
+
+    def test_validate_config_accepts_numeric_api_id(self):
+        with patch.object(bot, "API_ID", "123456"), patch.object(bot, "API_HASH", "hash"), patch.object(
+            bot, "BOT_TOKEN", "token"
+        ):
+            self.assertEqual(bot.validate_config(), 123456)
+
     def test_split_transcript_handles_empty_text(self):
         self.assertEqual(bot.split_transcript(""), [])
 
