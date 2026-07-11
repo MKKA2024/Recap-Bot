@@ -19,7 +19,7 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     level=logging.INFO,
 )
-LOGGER = logging.getLogger("recap-bot")
+LOGGER = logging.getLogger("video-transcriber")
 
 SUPPORTED_VIDEO_EXTENSIONS = {
     ".3gp",
@@ -273,7 +273,7 @@ async def handle_video(client: Client, message: Message) -> None:
 
 def main() -> None:
     api_id = validate_config()
-    app = Client("recap-bot", api_id=api_id, api_hash=API_HASH, bot_token=BOT_TOKEN)
+    app = Client("video-transcriber", api_id=api_id, api_hash=API_HASH, bot_token=BOT_TOKEN)
     app.add_handler(MessageHandler(start_command, filters.command("start")))
     app.add_handler(MessageHandler(help_command, filters.command("help")))
     app.add_handler(MessageHandler(model_command, filters.command("model")))

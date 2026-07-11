@@ -121,7 +121,7 @@ class BotHelpersTest(unittest.TestCase):
         self.assertTrue(all(len(chunk) <= bot.TELEGRAM_MESSAGE_CHUNK_LIMIT for chunk in chunks))
         self.assertEqual("".join(chunks), transcript)
 
-    def test_extract_audio_raises_runtime_error_with_ffmpeg_stderr(self):
+    def test_extract_audio_includes_ffmpeg_stderr_in_error(self):
         pipeline = Mock()
         pipeline.output.return_value = pipeline
         pipeline.overwrite_output.return_value = pipeline
