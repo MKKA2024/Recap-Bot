@@ -2,6 +2,7 @@ import asyncio
 import logging
 import tempfile
 from pathlib import Path
+from typing import Callable
 
 import edge_tts
 import ffmpeg
@@ -10,6 +11,7 @@ import whisper
 from pyrogram import Client, filters
 from pyrogram.errors import MessageNotModified, RPCError
 from pyrogram.handlers import MessageHandler
+from pyrogram.types import Message
 
 from config import API_HASH, API_ID, BOT_TOKEN, TTS_ENABLED, WHISPER_MODEL
 
@@ -68,7 +70,7 @@ def get_whisper_model():
     return _WHISPER_MODEL
 
 
-def is_supported_document(message) -> bool:
+def is_supported_document(message: Message) -> bool:
     document = message.document
     if not document:
         return False
@@ -80,7 +82,7 @@ def is_supported_document(message) -> bool:
     return Path(file_name).suffix.lower() in SUPPORTED_VIDEO_EXTENSIONS
 
 
-def media_suffix(message) -> str:
+def media_suffix(message: Message) -> str:
     if message.document and message.document.file_name:
         suffix = Path(message.document.file_name).suffix
         if suffix:
@@ -158,7 +160,7 @@ async def create_voice_reply(text: str, output_path: str) -> None:
         raise RuntimeError(stderr or "ffmpeg failed while converting TTS audio.") from error
 
 
-async def safe_edit(message, text: str) -> None:
+async def safe_edit(message: Message, text: str) -> None:
     try:
         await message.edit_text(text)
     except MessageNotModified:
@@ -167,7 +169,7 @@ async def safe_edit(message, text: str) -> None:
         LOGGER.warning("Unable to edit progress message: %s", error)
 
 
-def build_progress_callback(status_message):
+def build_progress_callback(status_message: Message) -> Callable[[int, int], None]:
     loop = asyncio.get_running_loop()
     progress_state = {"percent": -10, "updated_at": 0.0}
 
@@ -194,7 +196,7 @@ def build_progress_callback(status_message):
     return progress
 
 
-async def send_transcript(message, status_message, transcript: str) -> None:
+async def send_transcript(message: Message, status_message: Message, transcript: str) -> None:
     chunks = split_transcript(transcript)
     if not chunks:
         raise ValueError("Transcript result is empty.")
@@ -204,7 +206,7 @@ async def send_transcript(message, status_message, transcript: str) -> None:
         await message.reply_text(chunk)
 
 
-async def start_command(_, message):
+async def start_command(_: Client, message: Message) -> None:
     await message.reply_text(
         "မင်္ဂလာပါ 👋\n\n"
         "ဒီ bot က video ထဲက Myanmar voice ကို transcript ပြန်ထုတ်ပေးနိုင်ပါတယ်။\n"
@@ -212,7 +214,7 @@ async def start_command(_, message):
     )
 
 
-async def help_command(_, message):
+async def help_command(_: Client, message: Message) -> None:
     await message.reply_text(
         "အသုံးပြုနည်း\n\n"
         "1. Video / Video Note / Video document ပို့ပါ\n"
@@ -225,11 +227,11 @@ async def help_command(_, message):
     )
 
 
-async def model_command(_, message):
+async def model_command(_: Client, message: Message) -> None:
     await message.reply_text(f"🎙️ Current Whisper model: {WHISPER_MODEL}")
 
 
-async def handle_video(client, message):
+async def handle_video(client: Client, message: Message) -> None:
     if message.document and not is_supported_document(message):
         await message.reply_text("❌ ဒီ document က video file မဟုတ်လို့ process မလုပ်နိုင်ပါ။")
         return
