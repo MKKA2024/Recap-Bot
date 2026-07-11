@@ -8,6 +8,7 @@ import ffmpeg
 import torch
 import whisper
 from pyrogram import Client, filters
+from pyrogram.errors import MessageNotModified, RPCError
 from pyrogram.handlers import MessageHandler
 
 from config import API_HASH, API_ID, BOT_TOKEN, TTS_ENABLED, WHISPER_MODEL
@@ -30,6 +31,9 @@ SUPPORTED_VIDEO_EXTENSIONS = {
     ".webm",
 }
 TTS_VOICE = "my-MM-NilarNeural"
+PROGRESS_UPDATE_THRESHOLD_PERCENT = 10
+PROGRESS_UPDATE_INTERVAL_SECONDS = 5
+TELEGRAM_MESSAGE_CHUNK_LIMIT = 3500
 _WHISPER_MODEL = None
 
 
@@ -88,7 +92,7 @@ def media_suffix(message) -> str:
     return ".mp4"
 
 
-def split_transcript(text: str, limit: int = 3500) -> list[str]:
+def split_transcript(text: str, limit: int = TELEGRAM_MESSAGE_CHUNK_LIMIT) -> list[str]:
     cleaned = text.strip()
     if not cleaned:
         return []
@@ -157,8 +161,10 @@ async def create_voice_reply(text: str, output_path: str) -> None:
 async def safe_edit(message, text: str) -> None:
     try:
         await message.edit_text(text)
-    except Exception:
-        LOGGER.exception("Unable to edit progress message")
+    except MessageNotModified:
+        return
+    except RPCError as error:
+        LOGGER.warning("Unable to edit progress message: %s", error)
 
 
 def build_progress_callback(status_message):
@@ -171,7 +177,11 @@ def build_progress_callback(status_message):
 
         percent = int(current * 100 / total)
         now = loop.time()
-        if percent == 100 or percent - progress_state["percent"] >= 10 or now - progress_state["updated_at"] >= 5:
+        if (
+            percent == 100
+            or percent - progress_state["percent"] >= PROGRESS_UPDATE_THRESHOLD_PERCENT
+            or now - progress_state["updated_at"] >= PROGRESS_UPDATE_INTERVAL_SECONDS
+        ):
             progress_state["percent"] = percent
             progress_state["updated_at"] = now
             loop.create_task(
@@ -251,10 +261,10 @@ async def handle_video(client, message):
                     await message.reply_text("🔊 Voice reply ပြင်ဆင်နေပါတယ်...")
                     await create_voice_reply(transcript, str(voice_path))
                     await message.reply_voice(str(voice_path), caption="🔊 Myanmar voice reply")
-                except Exception as error:
+                except (OSError, RuntimeError, ValueError, RPCError) as error:
                     LOGGER.exception("TTS reply failed")
                     await message.reply_text(f"⚠️ Transcript ပို့ပြီးပါပြီ။ TTS မအောင်မြင်ပါ: {error}")
-    except Exception as error:
+    except (OSError, RuntimeError, ValueError, RPCError) as error:
         LOGGER.exception("Video processing failed")
         await safe_edit(status_message, f"❌ Processing မအောင်မြင်ပါ: {error}")
 
