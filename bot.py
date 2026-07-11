@@ -35,7 +35,15 @@ SUPPORTED_VIDEO_EXTENSIONS = {
 TTS_VOICE = "my-MM-NilarNeural"
 PROGRESS_UPDATE_THRESHOLD_PERCENT = 10
 PROGRESS_UPDATE_INTERVAL_SECONDS = 5
-TELEGRAM_MESSAGE_CHUNK_LIMIT = 3500
+TELEGRAM_MESSAGE_CHUNK_LIMIT = 4000
+STATUS_RECEIVED_TEXT = "⏳ Video လက်ခံရပါပြီ၊ Processing လုပ်နေပါတယ်..."
+STATUS_DOWNLOADING_TEXT = "⏬ Video ကို download လုပ်နေပါတယ်..."
+STATUS_EXTRACTING_TEXT = "🎵 Audio ထုတ်ယူနေပါတယ်..."
+STATUS_TRANSCRIBING_TEXT = "🧠 Myanmar speech transcript လုပ်နေပါတယ်..."
+STATUS_TTS_TEXT = "🔊 Voice reply ပြင်ဆင်နေပါတယ်..."
+STATUS_UNSUPPORTED_DOCUMENT_TEXT = "❌ ဒီ document က video file မဟုတ်လို့ process မလုပ်နိုင်ပါ။"
+STATUS_TTS_FAILED_TEXT = "⚠️ Transcript ပို့ပြီးပါပြီ။ Voice reply မပို့နိုင်သေးပါ။"
+STATUS_PROCESSING_FAILED_TEXT = "❌ Processing မအောင်မြင်ပါ။ Video file ကို ပြန်စမ်းပို့ပေးပါ။"
 _WHISPER_MODEL = None
 
 
@@ -189,7 +197,7 @@ def build_progress_callback(status_message: Message) -> Callable[[int, int], Non
             loop.create_task(
                 safe_edit(
                     status_message,
-                    f"⏬ Video ကို download လုပ်နေပါတယ်... {percent}%",
+                    f"{STATUS_DOWNLOADING_TEXT} {percent}%",
                 )
             )
 
@@ -233,10 +241,10 @@ async def model_command(_: Client, message: Message) -> None:
 
 async def handle_video(client: Client, message: Message) -> None:
     if message.document and not is_supported_document(message):
-        await message.reply_text("❌ ဒီ document က video file မဟုတ်လို့ process မလုပ်နိုင်ပါ။")
+        await message.reply_text(STATUS_UNSUPPORTED_DOCUMENT_TEXT)
         return
 
-    status_message = await message.reply_text("⏳ Video လက်ခံရပါပြီ၊ Processing လုပ်နေပါတယ်...")
+    status_message = await message.reply_text(STATUS_RECEIVED_TEXT)
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -250,25 +258,25 @@ async def handle_video(client: Client, message: Message) -> None:
                 file_name=str(video_path),
                 progress=build_progress_callback(status_message),
             )
-            await safe_edit(status_message, "🎵 Audio ထုတ်ယူနေပါတယ်...")
+            await safe_edit(status_message, STATUS_EXTRACTING_TEXT)
 
             await asyncio.to_thread(extract_audio, str(video_path), str(audio_path))
-            await safe_edit(status_message, "🧠 Myanmar speech transcript လုပ်နေပါတယ်...")
+            await safe_edit(status_message, STATUS_TRANSCRIBING_TEXT)
 
             transcript = await asyncio.to_thread(transcribe_audio, str(audio_path))
             await send_transcript(message, status_message, transcript)
 
             if TTS_ENABLED:
                 try:
-                    await message.reply_text("🔊 Voice reply ပြင်ဆင်နေပါတယ်...")
+                    await message.reply_text(STATUS_TTS_TEXT)
                     await create_voice_reply(transcript, str(voice_path))
                     await message.reply_voice(str(voice_path), caption="🔊 Myanmar voice reply")
                 except (OSError, RuntimeError, ValueError, RPCError) as error:
                     LOGGER.exception("TTS reply failed")
-                    await message.reply_text(f"⚠️ Transcript ပို့ပြီးပါပြီ။ TTS မအောင်မြင်ပါ: {error}")
+                    await message.reply_text(STATUS_TTS_FAILED_TEXT)
     except (OSError, RuntimeError, ValueError, RPCError) as error:
         LOGGER.exception("Video processing failed")
-        await safe_edit(status_message, f"❌ Processing မအောင်မြင်ပါ: {error}")
+        await safe_edit(status_message, STATUS_PROCESSING_FAILED_TEXT)
 
 
 def main() -> None:

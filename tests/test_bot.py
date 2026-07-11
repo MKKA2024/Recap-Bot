@@ -121,6 +121,15 @@ class BotHelpersTest(unittest.TestCase):
         self.assertTrue(all(len(chunk) <= bot.TELEGRAM_MESSAGE_CHUNK_LIMIT for chunk in chunks))
         self.assertEqual("".join(chunks), transcript)
 
+    def test_split_transcript_prefers_newlines_and_spaces(self):
+        transcript = ("ပထမစာကြောင်း\n" * 300) + ("မြန်မာ စာသား " * 300)
+        chunks = bot.split_transcript(transcript)
+        normalize = lambda value: "".join(value.split())
+
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(chunk) <= bot.TELEGRAM_MESSAGE_CHUNK_LIMIT for chunk in chunks))
+        self.assertEqual(normalize("".join(chunks)), normalize(transcript))
+
     def test_extract_audio_includes_ffmpeg_stderr_in_error(self):
         pipeline = Mock()
         pipeline.output.return_value = pipeline
