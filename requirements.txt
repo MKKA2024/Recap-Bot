@@ -1,0 +1,7 @@
+pyrogram>=2,<3
+tgcrypto>=1.2,<2
+openai-whisper>=20231117
+ffmpeg-python>=0.2,<1
+edge-tts>=6,<8
+torch>=2,<3
+python-dotenv>=1,<2
